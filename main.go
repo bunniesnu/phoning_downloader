@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
+	"strings"
 	"sync"
 
 	"github.com/schollz/progressbar/v3"
@@ -124,6 +126,75 @@ func main() {
 		fmt.Printf("Output directory: %s\n", outDir)
 	}
 
+	fmt.Println("Checking already existing files...")
+	existingFiles, err := os.ReadDir(outDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to read directory: %v\n", err)
+		os.Exit(1)
+	}
+	corruptedFiles := []string{}
+	for _, existingFile := range existingFiles {
+		filePath := outDir + "/" + existingFile.Name()
+		existingDigest, digestErr := digest(filePath)
+		if digestErr != nil {
+			fmt.Fprintf(os.Stderr, "failed to calculate digest for %s: %v\n", existingFile.Name(), digestErr)
+		}
+		expectedDigest, ok := digest_data[strings.Split(existingFile.Name(), ".")[0]]
+		if !ok {
+			fmt.Println("Failed to load correct digest")
+		}
+		if existingDigest != expectedDigest {
+			corruptedFiles = append(corruptedFiles, existingFile.Name())
+		}
+	}
+	resolved := false
+	for {
+		if len(corruptedFiles) != 0 {
+			choice, err := promptChoice(fmt.Sprintf("%d files seems corrupted. Select action.\n", len(corruptedFiles)),
+				"Delete corrupted files",
+				"Do not delete",
+				"See the list of corrupted files",
+			)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "Error reading input:", err)
+				os.Exit(1)
+			}
+			switch choice {
+			case 1:
+				for _, k := range corruptedFiles {
+					if err := os.Remove(outDir + "/" + k); err != nil {
+						fmt.Fprintf(os.Stderr, "Failed to delete %s: %v\n", k, err)
+						os.Exit(1)
+					} else if *verbose {
+						fmt.Printf("Deleted corrupted file: %s\n", k)
+					}
+				}
+				resolved = true
+			case 2:
+				resolved = true
+			case 3:
+				fmt.Println("List of corrupted files: ", corruptedFiles)
+			}
+		} else {
+			if *verbose {
+				fmt.Println("No corrupted files found.")
+			}
+			resolved = true
+		}
+		if resolved {
+			break
+		}
+	}
+	existingFiles, err = os.ReadDir(outDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to read directory: %v\n", err)
+		os.Exit(1)
+	}
+	existingFilePaths := make([]string, len(existingFiles))
+	for i, file := range existingFiles {
+		existingFilePaths[i] = outDir + "/" + file.Name()
+	}
+
 	// Download calls and podcasts
 	for t, k := range []string{"c", "p"} {
 		dir := "calls"
@@ -167,6 +238,14 @@ func main() {
 				}
 				inputUrl := fmt.Sprintf("https://cdn.newjeans.app/stream/%s/%d.m3u8", dir, int(id.(float64)))
 				outputFile := fmt.Sprintf("%s/%s%d.%s", outDir, k, int(id.(float64)), ext)
+				if slices.Contains(existingFilePaths, outputFile) {
+					if *verbose {
+						bar.Clear()
+						fmt.Printf("File %s already exists, skipping download.\n", outputFile)
+					}
+					bar.Add(1)
+					return
+				}
 				res, err := ffmpeg(
 					inputUrl,
 					outputFile,
