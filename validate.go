@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-func validateJson(dataFile string) (map[string]interface{}, string) {
+func parseJson(dataFile string) (map[string]interface{}, string) {
 	// Open and parse data.json
 	file, err := os.Open(dataFile)
 	if err != nil {
@@ -24,6 +24,14 @@ func validateJson(dataFile string) (map[string]interface{}, string) {
 	m, ok := data.(map[string]interface{})
 	if !ok {
 		return nil, "Data file is not a JSON object"
+	}
+	return m, ""
+}
+
+func validateJson(dataFile string) (map[string]interface{}, string) {
+	m, errMsg := parseJson(dataFile)
+	if m == nil {
+		return nil, errMsg
 	}
 	for _, key := range []string{"c", "p"} {
 		val, exists := m[key]
