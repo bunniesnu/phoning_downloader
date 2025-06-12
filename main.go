@@ -4,13 +4,15 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+
+	"github.com/schollz/progressbar/v3"
 )
 
 func main() {
 	// Check if FFmpeg is installed
 	ffmpegCheckCmd := exec.Command("ffmpeg", "-version")
 	if err := ffmpegCheckCmd.Run(); err != nil {
-		fmt.Println("Your system does not have FFmpeg installed. Refer: https://ffmpeg.org")
+		fmt.Println("Your system does not have FFmpeg installed or not in PATH. Refer: https://ffmpeg.org")
 		os.Exit(1)
 	}
 
@@ -47,5 +49,41 @@ func main() {
 	if m == nil {
 		fmt.Fprintln(os.Stderr, errMsg)
 		os.Exit(1)
+	}
+
+	// Prompt user to select output directory
+	fmt.Print("Enter output directory (default: output): ")
+	var outDir string
+	fmt.Scanln(&outDir)
+	if outDir == "" {
+		outDir = "output"
+	}
+	if err := os.MkdirAll(outDir, 0755); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create output directory: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Download calls and podcasts
+	for _, k := range []string{"c", "p"} {
+		arr := m[k].([]interface{})
+		bar := progressbar.Default(int64(len(arr)))
+		for _, item := range arr {
+			obj := item.(map[string]interface{})
+			id := obj["id"]
+			isAudio := obj["a"]
+			dir := "calls"
+			if k == "p" {
+				dir = "podcasts"
+			}
+			ext := "mp4"
+			if isAudio.(bool) {
+				ext = "m4a"
+			}
+			ffmpeg(
+				fmt.Sprintf("https://cdn.newjeans.app/stream/%s/%d.m3u8", dir, int(id.(float64))),
+				fmt.Sprintf("%s/%s%d.%s", outDir, k, int(id.(float64)), ext),
+			)
+			bar.Add(1)
+		}
 	}
 }
