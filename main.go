@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -11,6 +12,15 @@ import (
 )
 
 func main() {
+	// Parse concurrency flag
+	conc := flag.String("c", "5", "Number of concurrent downloads")
+	flag.Parse()
+	var concurrency int
+	if _, err := fmt.Sscanf(*conc, "%d", &concurrency); err != nil || concurrency < 1 {
+		fmt.Fprintln(os.Stderr, "Invalid concurrency value. Please provide a positive integer with -c flag.")
+		flag.Usage()
+		os.Exit(1)
+	}
 	// Check if FFmpeg is installed
 	ffmpegCheckCmd := exec.Command("ffmpeg", "-version")
 	if err := ffmpegCheckCmd.Run(); err != nil {
@@ -75,7 +85,7 @@ func main() {
 		fmt.Printf("Downloading %s (%d items)...\n", dir, len(arr))
 		bar := progressbar.Default(int64(len(arr)))
 		var wg sync.WaitGroup
-		sem := make(chan struct{}, 5) // limit to 5 concurrent downloads
+		sem := make(chan struct{}, concurrency) // limit concurrent downloads
 		wg.Add(len(arr))
 		// Use context to handle cancellation on error
 		ctx, cancel := context.WithCancel(context.Background())
