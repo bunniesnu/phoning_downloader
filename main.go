@@ -116,14 +116,21 @@ func main() {
 	}
 
 	// Download calls and podcasts
-	for _, k := range []string{"c", "p"} {
+	for t, k := range []string{"c", "p"} {
 		dir := "calls"
 		if k == "p" {
 			dir = "podcasts"
 		}
 		arr := m[k].([]interface{})
-		fmt.Printf("Downloading %s (%d items)...\n", dir, len(arr))
-		bar := progressbar.Default(int64(len(arr)))
+		bar := progressbar.NewOptions64(int64(len(arr)),
+			progressbar.OptionSetWriter(os.Stdout),
+			progressbar.OptionEnableColorCodes(true),
+			progressbar.OptionShowCount(),
+			progressbar.OptionSetDescription(fmt.Sprintf("[cyan][%d/2][reset] Downloading %s", t + 1, dir)),
+			progressbar.OptionClearOnFinish(),
+			progressbar.OptionSetWidth(100),
+			progressbar.OptionShowIts(),
+		)
 		var wg sync.WaitGroup
 		sem := make(chan struct{}, concurrency) // limit concurrent downloads
 		wg.Add(len(arr))
