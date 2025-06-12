@@ -43,8 +43,8 @@ func main() {
 		fmt.Println("Copied docs/data.json to data.json.")
 	}
 
-	validJson, errMsg := validateJson(dataFile)
-	if !validJson {
+	m, errMsg := validateJson(dataFile)
+	if m == nil {
 		fmt.Fprintln(os.Stderr, errMsg)
 		os.Exit(1)
 	}
