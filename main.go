@@ -14,6 +14,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Check if the data file exists
 	dataFile := "data.json"
 	if _, err := os.Stat(dataFile); err != nil {
 		choice, err := promptChoice("You do not have a data file.\nPlease choose an option:",
@@ -28,5 +29,23 @@ func main() {
 			fmt.Println("Quitting...\nRefer to the documentation: https://github.com/bunniesnu/phoningdb_downloader#readme")
 			os.Exit(0)
 		}
+		src := "docs/data.json"
+		dst := "data.json"
+		input, err := os.ReadFile(src)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to read %s: %v\n", src, err)
+			os.Exit(1)
+		}
+		if err := os.WriteFile(dst, input, 0644); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to write %s: %v\n", dst, err)
+			os.Exit(1)
+		}
+		fmt.Println("Copied docs/data.json to data.json.")
+	}
+
+	validJson, errMsg := validateJson(dataFile)
+	if !validJson {
+		fmt.Fprintln(os.Stderr, errMsg)
+		os.Exit(1)
 	}
 }
