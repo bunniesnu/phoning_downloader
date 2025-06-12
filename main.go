@@ -15,12 +15,20 @@ func main() {
 	// Parse concurrency flag
 	conc := flag.String("c", "5", "Number of concurrent downloads")
 	output_in := flag.String("o", "", "Output directory")
+	help := flag.Bool("h", false, "Show help")
 	flag.Parse()
+	if *help {
+		flag.Usage()
+		os.Exit(0)
+	}
 	var concurrency int
 	if _, err := fmt.Sscanf(*conc, "%d", &concurrency); err != nil || concurrency < 1 {
 		fmt.Fprintln(os.Stderr, "Invalid concurrency value. Please provide a positive integer with -c flag.")
 		flag.Usage()
 		os.Exit(1)
+	}
+	if concurrency > 20 {
+		fmt.Println("Warning: If you set the concurrency value too high, your system may crash or become unresponsive.")
 	}
 	// Check if FFmpeg is installed
 	ffmpegCheckCmd := exec.Command("ffmpeg", "-version")
