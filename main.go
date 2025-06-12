@@ -65,16 +65,17 @@ func main() {
 
 	// Download calls and podcasts
 	for _, k := range []string{"c", "p"} {
+		dir := "calls"
+		if k == "p" {
+			dir = "podcasts"
+		}
 		arr := m[k].([]interface{})
+		fmt.Printf("Downloading %s (%d items)...\n", dir, len(arr))
 		bar := progressbar.Default(int64(len(arr)))
 		for _, item := range arr {
 			obj := item.(map[string]interface{})
 			id := obj["id"]
 			isAudio := obj["a"]
-			dir := "calls"
-			if k == "p" {
-				dir = "podcasts"
-			}
 			ext := "mp4"
 			if isAudio.(bool) {
 				ext = "m4a"
