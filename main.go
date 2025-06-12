@@ -96,6 +96,15 @@ func main() {
 		fmt.Println("Data file is valid.")
 	}
 
+	digest_data, errMsg := parseJson("docs/digest.json")
+	if digest_data == nil {
+		fmt.Fprintln(os.Stderr, errMsg)
+		os.Exit(1)
+	}
+	if *verbose {
+		fmt.Println("Loaded digest data.")
+	}
+
 	// Prompt user to select output directory
 	var outDir string
 	if *output_in == "" {
@@ -162,10 +171,6 @@ func main() {
 					inputUrl,
 					outputFile,
 				)
-				if *verbose {
-					bar.Clear()
-					fmt.Println("Downloaded:", inputUrl, "to", outputFile)
-				}
 				if !res || err != nil {
 					select {
 					case errCh <- fmt.Errorf("failed to download %s%d: %v", k, int(id.(float64)), err):
@@ -173,6 +178,32 @@ func main() {
 					}
 					cancel()
 					return
+				}
+				if *verbose {
+					bar.Clear()
+					fmt.Println("Downloaded:", inputUrl, "to", outputFile)
+				}
+				file_digest, err := digest(outputFile)
+				if err != nil {
+					select {
+					case errCh <- fmt.Errorf("failed to calculate digest for %s%d: %v", k, int(id.(float64)), err):
+					default:
+					}
+					cancel()
+					return
+				}
+				expectedDigest, ok := digest_data[fmt.Sprintf("%s%d", k, int(id.(float64)))]
+				if !ok || expectedDigest == nil || expectedDigest.(string) != file_digest {
+					select {
+					case errCh <- fmt.Errorf("digest mismatch for %s%d: expected %v, got %s", k, int(id.(float64)), expectedDigest, file_digest):
+					default:
+					}
+					cancel()
+					return
+				}
+				if *verbose {
+					bar.Clear()
+					fmt.Printf("Digest for %s%d matches: %s\n", k, int(id.(float64)), file_digest)
 				}
 				bar.Add(1)
 			}(item)
