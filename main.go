@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
+	"sync"
 
 	"github.com/schollz/progressbar/v3"
 )
@@ -72,19 +74,59 @@ func main() {
 		arr := m[k].([]interface{})
 		fmt.Printf("Downloading %s (%d items)...\n", dir, len(arr))
 		bar := progressbar.Default(int64(len(arr)))
+		var wg sync.WaitGroup
+		sem := make(chan struct{}, 5) // limit to 5 concurrent downloads
+		wg.Add(len(arr))
+		// Use context to handle cancellation on error
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		errCh := make(chan error, 1)
+
 		for _, item := range arr {
-			obj := item.(map[string]interface{})
-			id := obj["id"]
-			isAudio := obj["a"]
-			ext := "mp4"
-			if isAudio.(bool) {
-				ext = "m4a"
-			}
-			ffmpeg(
-				fmt.Sprintf("https://cdn.newjeans.app/stream/%s/%d.m3u8", dir, int(id.(float64))),
-				fmt.Sprintf("%s/%s%d.%s", outDir, k, int(id.(float64)), ext),
-			)
-			bar.Add(1)
+			go func(item interface{}) {
+				sem <- struct{}{} // acquire a slot
+				defer func() { <-sem }() // release the slot
+				defer wg.Done()
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
+				obj := item.(map[string]interface{})
+				id := obj["id"]
+				isAudio := obj["a"]
+				ext := "mp4"
+				if isAudio.(bool) {
+					ext = "m4a"
+				}
+				res, err := ffmpeg(
+					fmt.Sprintf("https://cdn.newjeans.app/stream/%s/%d.m3u8", dir, int(id.(float64))),
+					fmt.Sprintf("%s/%s%d.%s", outDir, k, int(id.(float64)), ext),
+				)
+				if !res || err != nil {
+					select {
+					case errCh <- fmt.Errorf("failed to download %s%d: %v", k, int(id.(float64)), err):
+					default:
+					}
+					cancel()
+					return
+				}
+				bar.Add(1)
+			}(item)
+		}
+
+		done := make(chan struct{})
+		go func() {
+			wg.Wait()
+			close(done)
+		}()
+
+		select {
+		case err := <-errCh:
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		case <-done:
+			fmt.Printf("Finished downloading %s.\n", dir)
 		}
 	}
 }

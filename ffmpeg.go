@@ -1,12 +1,10 @@
 package main
 
 import (
-	"fmt"
-	"os"
 	"os/exec"
 )
 
-func ffmpeg(inputUrl string, outputFile string) {
+func ffmpeg(inputUrl string, outputFile string) (bool, error) {
 	cmd := exec.Command(
 		"ffmpeg",
 		"-y",
@@ -17,7 +15,7 @@ func ffmpeg(inputUrl string, outputFile string) {
 	cmd.Stdout = nil
 	cmd.Stderr = nil
 	if err := cmd.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "ffmpeg error: %v\n", err)
-		os.Exit(1)
+		return false, err
 	}
+	return true, nil
 }
