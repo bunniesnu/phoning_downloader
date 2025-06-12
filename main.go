@@ -12,9 +12,10 @@ import (
 )
 
 func main() {
-	// Parse concurrency flag
+	// Parse flags
 	conc := flag.String("c", "5", "Number of concurrent downloads")
 	output_in := flag.String("o", "", "Output directory")
+	verbose := flag.Bool("verbose", false, "Enable verbose logging")
 	help := flag.Bool("h", false, "Show help")
 	flag.Parse()
 	if *help {
@@ -27,17 +28,30 @@ func main() {
 		flag.Usage()
 		os.Exit(1)
 	}
+	if *verbose {
+		fmt.Printf("Concurrency value: %d\n", concurrency)
+	}
 	if concurrency > 20 {
 		fmt.Println("Warning: If you set the concurrency value too high, your system may crash or become unresponsive.")
 	}
+
 	// Check if FFmpeg is installed
+	if *verbose {
+		fmt.Println("Checking FFmpeg installation...")
+	}
 	ffmpegCheckCmd := exec.Command("ffmpeg", "-version")
 	if err := ffmpegCheckCmd.Run(); err != nil {
 		fmt.Println("Your system does not have FFmpeg installed or not in PATH. Refer: https://ffmpeg.org")
 		os.Exit(1)
 	}
+	if *verbose {
+		fmt.Println("FFmpeg verified.")
+	}
 
 	// Check if the data file exists
+	if *verbose {
+		fmt.Println("Checking data file existance...")
+	}
 	dataFile := "data.json"
 	if _, err := os.Stat(dataFile); err != nil {
 		choice, err := promptChoice("You do not have a data file.\nPlease choose an option:",
@@ -63,12 +77,23 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Failed to write %s: %v\n", dst, err)
 			os.Exit(1)
 		}
+		if *verbose {
+			fmt.Println("Copied docs/data.json to data.json")
+		}
+	} else if *verbose {
+		fmt.Println("Data file exists.")
 	}
 
+	if *verbose {
+		fmt.Println("Validating data file...")
+	}
 	m, errMsg := validateJson(dataFile)
 	if m == nil {
 		fmt.Fprintln(os.Stderr, errMsg)
 		os.Exit(1)
+	}
+	if *verbose {
+		fmt.Println("Data file is valid.")
 	}
 
 	// Prompt user to select output directory
@@ -85,6 +110,9 @@ func main() {
 	if err := os.MkdirAll(outDir, 0755); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create output directory: %v\n", err)
 		os.Exit(1)
+	}
+	if *verbose {
+		fmt.Printf("Output directory: %s\n", outDir)
 	}
 
 	// Download calls and podcasts
@@ -121,10 +149,16 @@ func main() {
 				if isAudio.(bool) {
 					ext = "m4a"
 				}
+				inputUrl := fmt.Sprintf("https://cdn.newjeans.app/stream/%s/%d.m3u8", dir, int(id.(float64)))
+				outputFile := fmt.Sprintf("%s/%s%d.%s", outDir, k, int(id.(float64)), ext)
 				res, err := ffmpeg(
-					fmt.Sprintf("https://cdn.newjeans.app/stream/%s/%d.m3u8", dir, int(id.(float64))),
-					fmt.Sprintf("%s/%s%d.%s", outDir, k, int(id.(float64)), ext),
+					inputUrl,
+					outputFile,
 				)
+				if *verbose {
+					bar.Clear()
+					fmt.Println("Downloaded:", inputUrl, "to", outputFile)
+				}
 				if !res || err != nil {
 					select {
 					case errCh <- fmt.Errorf("failed to download %s%d: %v", k, int(id.(float64)), err):
