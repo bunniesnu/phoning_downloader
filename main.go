@@ -14,6 +14,7 @@ import (
 func main() {
 	// Parse concurrency flag
 	conc := flag.String("c", "5", "Number of concurrent downloads")
+	output_in := flag.String("o", "", "Output directory")
 	flag.Parse()
 	var concurrency int
 	if _, err := fmt.Sscanf(*conc, "%d", &concurrency); err != nil || concurrency < 1 {
@@ -54,7 +55,6 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Failed to write %s: %v\n", dst, err)
 			os.Exit(1)
 		}
-		fmt.Println("Copied docs/data.json to data.json.")
 	}
 
 	m, errMsg := validateJson(dataFile)
@@ -64,11 +64,15 @@ func main() {
 	}
 
 	// Prompt user to select output directory
-	fmt.Print("Enter output directory (default: output): ")
 	var outDir string
-	fmt.Scanln(&outDir)
-	if outDir == "" {
-		outDir = "output"
+	if *output_in == "" {
+		fmt.Print("Enter output directory (default: output): ")
+		fmt.Scanln(&outDir)
+		if outDir == "" {
+			outDir = "output"
+		}
+	} else {
+		outDir = *output_in
 	}
 	if err := os.MkdirAll(outDir, 0755); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create output directory: %v\n", err)
